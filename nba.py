@@ -31,20 +31,26 @@ stat_type_mapping = {
     'defensive rebounds': 'DREB',
     'dreb': 'DREB',
     'turnovers': 'TOV',
-    'tov': 'TOV'
+    'tov': 'TOV',
+    'pointsandrebound': ['PTS', 'REB'],
+    'pointsandassists': ['PTS', 'AST'],
+    'pointsreboundsassists': ['PTS', 'REB', 'AST'],
+    'blocksandsteals': ['BLK', 'STL'],
+    'reboundsandassists': ['REB', 'AST']
 }
 
 def process_nba_stats(player_name, stat_type, team_name, choice):
     league = 'nba'
-    stat_type = stat_type_mapping.get(stat_type.lower(), stat_type)  # Standardize the stat_type input
+    stat_type_key = stat_type.lower().replace(' ', '').replace(',', '').replace('+', '')
+    stat_type_mapped = stat_type_mapping.get(stat_type_key, stat_type_key)  # Standardize the stat_type input
     
     if choice == 'regular':
-        df = get_player_stats(player_name, stat_type, team_name, league, playoffs=False)
+        df = get_player_stats(player_name, stat_type_key, team_name, league, playoffs=False)
     elif choice == 'playoffs':
-        df = get_player_stats(player_name, stat_type, team_name, league, playoffs=True)
+        df = get_player_stats(player_name, stat_type_key, team_name, league, playoffs=True)
     elif choice == 'combined':
-        regular_season_df = get_player_stats(player_name, stat_type, team_name, league, playoffs=False)
-        playoff_df = get_player_stats(player_name, stat_type, team_name, league, playoffs=True)
+        regular_season_df = get_player_stats(player_name, stat_type_key, team_name, league, playoffs=False)
+        playoff_df = get_player_stats(player_name, stat_type_key, team_name, league, playoffs=True)
         if not regular_season_df.empty and not playoff_df.empty:
             df = pd.concat([regular_season_df, playoff_df], ignore_index=True)
         elif not regular_season_df.empty:
@@ -54,7 +60,7 @@ def process_nba_stats(player_name, stat_type, team_name, choice):
         else:
             df = pd.DataFrame()
     elif choice == 'last_7_games':
-        df = get_last_7_games(player_name, stat_type, league)
+        df = get_last_7_games(player_name, stat_type_key, league)
     else:
         df = pd.DataFrame()
 
@@ -90,15 +96,21 @@ def process_nba_stats(player_name, stat_type, team_name, choice):
         df = df.loc[:, columns_to_keep]
         df.loc[:, 'NAME'] = df['NAME'].astype(str)
         df.loc[:, 'DATE'] = df['DATE'].astype(str)
+        
+        # Handle combined statistics
+        if isinstance(stat_type_mapped, list):
+            combined_stat_name = ' + '.join(stat_type_mapped)
+            df[combined_stat_name] = df[stat_type_mapped].sum(axis=1)
+            stat_type_mapped = combined_stat_name
     
-    return df, stat_type
+    return df, stat_type_mapped
 
-# # Example usage (for testing purposes only, remove or comment out when using in other scripts)
-# if __name__ == "__main__":
-#     player_name = "Luka Doncic"
-#     stat_type = "Points"
-#     team_name = "Boston Celtics"
-#     choice = 'regular'  # 'regular', 'playoffs', 'combined', 'last_7_games'
-#     df, stat_type = process_nba_stats(player_name, stat_type, team_name, choice)
-#     print("Stats:")
-#     print(df)
+# Example usage (for testing purposes only, remove or comment out when using in other scripts)
+if __name__ == "__main__":
+    player_name = "Luka Doncic"
+    stat_type = "Points and Assists"
+    team_name = "Boston Celtics"
+    choice = 'regular'  # 'regular', 'playoffs', 'combined', 'last_7_games'
+    df, stat_type = process_nba_stats(player_name, stat_type, team_name, choice)
+    print("Stats:")
+    print(df)
