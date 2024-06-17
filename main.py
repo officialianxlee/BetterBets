@@ -5,12 +5,12 @@ from nba import process_nba_stats
 import pandas as pd
 
 player_name = "Luka Doncic"
-stat_type = "reb"  # This can be "Points", "PTS", "Rebounds", "REB", etc.
+stat_type = "Points and Assists"  # This can be "Points", "PTS", "Rebounds", "REB", "Points and Assists", etc.
 team_name = "Boston Celtics"
 projection = 30.5  # Example projection value
 
 # User's choice for data display
-choice = 'last_7_games'  # 'regular', 'playoffs', 'combined', 'last_7_games'
+choice = 'combined'  # 'regular', 'playoffs', 'combined', 'last_7_games'
 
 df, standardized_stat_type = process_nba_stats(player_name, stat_type, team_name, choice)
 
