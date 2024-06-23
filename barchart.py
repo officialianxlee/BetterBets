@@ -19,7 +19,7 @@ def get_team_logo(team_abbr):
         print(f"Error fetching logo for {team_abbr}: {response.status_code}")
         return None
 
-def plot_sports_stats(data, parameter):
+def plot_sports_stats(data, parameter, projection):
     plt.style.use('https://github.com/dhaitz/matplotlib-stylesheets/raw/master/pitayasmoothie-dark.mplstyle')
 
     # Extract header and find the index of the specified parameter
@@ -46,6 +46,8 @@ def plot_sports_stats(data, parameter):
 
     bars = plt.bar(x_values, sorted_values, width=0.6, color=colors)
     plt.axhline(y=mean_value, color='blue', linestyle='--', label=f'Average {parameter}')
+    # Plot the projection line
+    plt.axhline(y=projection, color='purple', linestyle='-.', label='Projection')
 
     plt.xlabel('Date')
     plt.ylabel(parameter)
@@ -58,7 +60,7 @@ def plot_sports_stats(data, parameter):
     # Adding data labels and team logos on top of each bar
     for i, bar in enumerate(bars):
         yval = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2, yval + 1, yval, ha='center', va='bottom', fontsize=10, color='black')
+        plt.text(bar.get_x() + bar.get_width() / 2, yval + 1, yval, ha='center', va='bottom', fontsize=10, color='white')
 
         # Add the team logo to each bar (optional, if applicable and logos are available)
         # team_logo = get_team_logo(sorted_team_abbrs[i])
@@ -83,9 +85,9 @@ data = [
     ['', '', 'Average', '', '', '', '', '22.4', '35.0', '64.0', '251.2', '7.2', '1.8', '0.6', '95.3', '5.1', '1.7', '1.4', '11.0']
 ]
 
-plot_sports_stats(data, 'TD')
+plot_sports_stats(data, 'TD', 10)
 
 lebron_james_career = geturl("nba", "lebron-james", "", "playoff-game-log")
 lj = scrape_statmuse(lebron_james_career)
 v = clean_nba_data(lj)
-plot_sports_stats(v, 'PTS')
+plot_sports_stats(v, 'PTS', 10)
