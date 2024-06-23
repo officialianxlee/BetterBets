@@ -1,47 +1,120 @@
-# datascraper.py
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-from io import StringIO
+from datetime import datetime
 
-def get_player_stats(player_name, stat_type, team_name, league, playoffs=False):
-    query = f"{player_name} {stat_type} vs {team_name}"
-    if playoffs:
-        query += " playoffs"
-    url = f"https://www.statmuse.com/{league}/ask/{query.replace(' ', '-')}"
+
+def geturl(league: str, player_name: str, team: str, time_duration: str):
+    """Get the URL for StatMuse"""
+    return f"https://www.statmuse.com/{league}/ask/{player_name}-vs-{team}-{time_duration}"
+
+# something important for the get_url
+# we can leave the team blank if we want the 7 games of any game they played
+#time duration is a bit complex but will be easier our combined we will have to figure that out.
+# I am thinking the last 6 games of the player and the last 5 games against that team
+# "last-5-regular-season-games', "last-5-playoff-games', "playoff-game-log", "combined"
+# forr and the 5 last games against team.
+def slice_after_vs(url):
+    """Find and slice the URL after 'vs-'"""
+    index = url.find("vs-")
+    if index != -1:
+        return url[:index + len("vs-")]
+    return url
+
+
+def sort_combined_data(nested_list):
+    # Find the index of the "DATE" column
+    header = nested_list[0]
+    date_index = header.index("DATE")
+
+    # Function to parse the date from each row
+    def get_date(row):
+        try:
+            return datetime.strptime(row[date_index], '%m/%d/%Y')
+        except ValueError:
+            return datetime.min  # Return the smallest date for non-date rows (headers or averages)
+
+    # Separate the header and filter out rows with "Average" and duplicate headers
+    header = nested_list[0]
+    data = [row for row in nested_list[1:] if row[date_index] and "Average" not in row and row != header]
+
+    # Sort the data by date
+    sorted_data = sorted(data, key=get_date)
+
+    # Reconstruct the nested list with the header and sorted data
+    sorted_nested_list = [header] + sorted_data
+
+    return sorted_nested_list
+
+
+def scrape_statmuse(url):
+    """
+    Scrapes data from a StatMuse page and returns it as a nested list.
+
+    Args:
+        url (str): The URL of the StatMuse page to scrape.
+
+    Returns:
+        list: A nested list containing the scraped data.
+    """
+    if "combined" in url:
+        data1 = scrape_statmuse(url[:-8] + "last-5-regular-season-games")
+        data2 = scrape_statmuse(slice_after_vs(url) + "last-6-regular-season-games")
+        return sort_combined_data(data1 + data2)
+
     response = requests.get(url)
-    if response.status_code != 200:
-        print(f"Failed to retrieve data: {response.status_code}")
-        return pd.DataFrame()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    # Find the table
     table = soup.find('table')
-
     if not table:
-        print("Table not found")
-        return pd.DataFrame()
-    
-    table_html = StringIO(str(table))
-    df = pd.read_html(table_html)[0]
-    
-    return df
+        print("No table found on the page.")
+        return []
 
-def get_last_7_games(player_name, stat_type, league):
-    query = f"{player_name} last 7 games {stat_type}"
-    url = f"https://www.statmuse.com/{league}/ask/{query.replace(' ', '-')}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"Failed to retrieve data: {response.status_code}")
-        return pd.DataFrame()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
-    table = soup.find('table')
+    # Extract headers
+    headers = [header.get_text(strip=True) for header in table.find_all('th')]
 
-    if not table:
-        print("Table not found")
-        return pd.DataFrame()
-    
-    table_html = StringIO(str(table))
-    df = pd.read_html(table_html)[0]
-    
-    return df
+    # Extract rows
+    rows = table.find_all('tr')
+    data = [headers]
+
+    for row in rows[1:]:
+        cells = row.find_all('td')
+        row_data = [cell.get_text(strip=True) for cell in cells]
+
+        # Skip empty rows and totals
+        if any(cell.strip() for cell in row_data) and 'Total' not in row_data:
+            data.append(row_data)
+
+    return data
+
+
+nba_url = geturl("nba", "lebron-james", "mavs", "combined")
+print(nba_url)
+nba_data = scrape_statmuse(nba_url)
+
+for row in nba_data:
+    print(row)
+
+
+nfl_url = geturl("nfl", "tom-brady", "packers", "last-5-regular-games")
+nfl_data = scrape_statmuse(nfl_url)
+
+lebron_james_career = geturl("nba", "lebron-james", "", "playoff-game-log")
+lj = scrape_statmuse(lebron_james_career)
+
+AJ = geturl("mlb", "aaron judge", "", "playoff-game-log")
+print(AJ)
+aJJ = scrape_statmuse(AJ)
+
+
+for row in nfl_data:
+    print(row)
+
+for row in lj:
+    print(row)
+
+for row in aJJ:
+    print(row)
+
+
+
