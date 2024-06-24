@@ -35,7 +35,7 @@ def clean_nhl_data(data, position):
     }
 
     # Get indices of columns to keep based on mapped names
-    indices_to_keep = {col: header.index(column_map[col]) if column_map[col] in header else None for col in columns_to_keep}
+    indices_to_keep = {col: header.index(col) if col in header else None for col in columns_to_keep}
 
     # Function to clean a row and add new columns
     def clean_row(row):
@@ -74,7 +74,7 @@ def get_nhl_goalie_statistics():
     return ['Goalie Saves', 'Time On Ice']
 
 # Example usage
-nhl_url = geturl("nhl", "stuart skinner", "panthers", "playoffs")
+nhl_url = geturl("nhl", "stuart-skinner", "panthers", "playoffs")
 print(nhl_url)
 nhl_data = scrape_statmuse(nhl_url)
 print(nhl_data)  # Print the raw data to debug
