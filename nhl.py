@@ -22,16 +22,16 @@ def clean_nhl_data(data, position):
         'DATE': 'DATE',
         'TM': 'TM',
         'OPP': 'OPP',
-        'SV': 'SAVES',    # Saves made by the goalie
-        'MIN': 'TOI',     # Minutes or time on ice
-        'P': 'PTS',
-        'G': 'GOALS',
-        'S': 'SOG',
-        'A': 'ASSISTS',
-        'TOI': 'TOI',
-        'FOW': 'FOW',
-        'HIT': 'HITS',
-        'BKS': 'BS'
+        'SV': 'Saves',  # Rename SV to Saves
+        'MIN': 'Time On Ice',  # Rename MIN to Time On Ice
+        'P': 'Points',
+        'G': 'Goals',
+        'S': 'Shots On Goal',
+        'A': 'Assists',
+        'TOI': 'Time On Ice',
+        'FOW': 'Faceoffs Won',
+        'HIT': 'Hits',
+        'BKS': 'Blocked Shots'
     }
 
     # Get indices of columns to keep based on mapped names
@@ -62,8 +62,9 @@ def clean_nhl_data(data, position):
     # Remove any rows that failed to process
     cleaned_data = [row for row in cleaned_data if row is not None]
 
-    # Add new headers for the additional columns
-    cleaned_data.insert(0, columns_to_keep + additional_columns)
+    # Rename the headers
+    renamed_headers = [column_map.get(col, col) for col in columns_to_keep] + additional_columns
+    cleaned_data.insert(0, renamed_headers)
 
     return cleaned_data
 
@@ -71,14 +72,14 @@ def get_nhl_player_statistics():
     return ['Points', 'Goals', 'Shots On Goal', 'Assists', 'Time On Ice', 'Faceoffs Won', 'Hits', 'Blocked Shots', 'SOG + BS']
 
 def get_nhl_goalie_statistics():
-    return ['Goalie Saves', 'Time On Ice']
+    return ['Saves', 'Time On Ice']
 
-# Example usage
-nhl_url = geturl("nhl", "stuart-skinner", "panthers", "playoffs")
-print(nhl_url)
-nhl_data = scrape_statmuse(nhl_url)
-print(nhl_data)  # Print the raw data to debug
-v = clean_nhl_data(nhl_data, 'goalie')  # Specify 'player' or 'goalie'
+# # Example usage
+# nhl_url = geturl("nhl", "stuart-skinner", "panthers", "playoffs")
+# print(nhl_url)
+# nhl_data = scrape_statmuse(nhl_url)
+# print(nhl_data)  # Print the raw data to debug
+# v = clean_nhl_data(nhl_data, 'goalie')  # Specify 'player' or 'goalie'
 
-for row in v:
-    print(row)
+# for row in v:
+#     print(row)
