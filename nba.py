@@ -1,3 +1,5 @@
+#NBA DATA CLEANING
+from datascraper import geturl, scrape_statmuse
 def clean_nba_data(data):
     # Indices of columns to keep
     columns_to_keep = ['NAME', 'DATE', 'TM', 'OPP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'FGM', 'FGA', '3PM', '3PA', 'FTM', 'FTA', 'OREB', 'DREB', 'TOV', 'PF']
@@ -45,12 +47,15 @@ def clean_nba_data(data):
 
     return cleaned_data
 
+def get_nba_statistics():
+    return ['MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'FGM', 'FGA', '3PM', '3PA', 'FTM', 'FTA', 'OREB', 'DREB', 'TOV', 'PF', 'PTS + REB', 'PTS + AST', 'PTS + REB + AST', 'BLK + STL', 'REB + AST']
 
-# Example usage
-nba_url = geturl("nba", "lebron-james", "mavs", "combined")
-print(nba_url)
-nba_data = scrape_statmuse(nba_url)
-v = clean_nba_data(nba_data)
 
-for row in v:
-    print(row)
+# # Example usage
+# nba_url = geturl("nba", "lebron-james", "mavs", "combined")
+# # print(nba_url)
+# nba_data = scrape_statmuse(nba_url)
+# v = clean_nba_data(nba_data)
+
+# for row in v:
+#     print(row)
