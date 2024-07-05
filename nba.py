@@ -1,61 +1,153 @@
-#NBA DATA CLEANING
-from datascraper import geturl, scrape_statmuse
-def clean_nba_data(data):
-    # Indices of columns to keep
-    columns_to_keep = ['NAME', 'DATE', 'TM', 'OPP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'FGM', 'FGA', '3PM', '3PA', 'FTM', 'FTA', 'OREB', 'DREB', 'TOV', 'PF']
+import pandas as pd
+import numpy as np
+from datascraper import get_player_stats
 
-    # Get indices of columns to keep from header
+# Define column mappings for different stat categories
+column_mappings = {
+    "Last 5 games in general": {
+        'PTS': 'PTS', 'REB': 'REB', 'AST': 'AST', 'STL': 'STL', 'BLK': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TOV': 'TOV'
+    },
+    "Last 5 regular season games against team": {
+        'PTS': 'PTS', 'REB': 'REB', 'AST': 'AST', 'STL': 'STL', 'BLK': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TOV': 'TOV'
+    },
+    "Last 5 playoff games against team": {
+        'PTS': 'PTS', 'REB': 'REB', 'AST': 'AST', 'STL': 'STL', 'BLK': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TOV': 'TOV'
+    },
+    "Home stats against team": {
+        'PTS': 'PTS', 'REB': 'REB', 'AST': 'AST', 'STL': 'STL', 'BLK': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TOV': 'TOV'
+    },
+    "Away stats against team": {
+        'PTS': 'PTS', 'REB': 'REB', 'AST': 'AST', 'STL': 'STL', 'BLK': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TOV': 'TOV'
+    },
+    "Current season average": {
+        'PPG': 'PTS', 'RPG': 'REB', 'APG': 'AST', 'SPG': 'STL', 'BPG': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TPG': 'TOV'
+    },
+    "Home stats (regular season)": {
+        'PPG': 'PTS', 'RPG': 'REB', 'APG': 'AST', 'SPG': 'STL', 'BPG': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TPG': 'TOV'
+    },
+    "Away stats (regular season)": {
+        'PPG': 'PTS', 'RPG': 'REB', 'APG': 'AST', 'SPG': 'STL', 'BPG': 'BLK',
+        'FGM': 'FGM', 'FGA': 'FGA', '3PM': '3PM', '3PA': '3PA',
+        'FTM': 'FTM', 'FTA': 'FTA', 'OREB': 'OREB', 'DREB': 'DREB', 'TPG': 'TOV'
+    }
+}
+
+# List of season-related stat categories
+season_related_categories = [
+    "Current season average", 
+    "Home stats (regular season)", 
+    "Away stats (regular season)"
+]
+
+def clean_nba_data(data, column_mapping, is_season_avg=False):
+    """
+    Cleans NBA data by keeping specified columns and adding calculated columns.
+    
+    Parameters:
+    data (list of list): Raw data from StatMuse.
+    column_mapping (dict): Mapping from raw column names to standardized names.
+    is_season_avg (bool): Flag to indicate if the data is season averages.
+    
+    Returns:
+    pd.DataFrame: Cleaned and processed DataFrame.
+    """
     header = data[0]
-    indices_to_keep = [header.index(col) for col in columns_to_keep]
+    indices_to_keep = {raw: header.index(raw) for raw in column_mapping.keys() if raw in header}
 
-    # Function to clean a row and add new columns
-    def clean_row(row):
-        cleaned_row = [row[i] for i in indices_to_keep]
+    cleaned_rows = []
+    for row in data[1:]:
+        if row and 'Average' not in row:
+            try:
+                cleaned_row = {column_mapping[raw]: float(row[idx]) if row[idx] else 0.0 for raw, idx in indices_to_keep.items()}
+                
+                # Extract values to calculate new columns
+                pts = cleaned_row.get('PTS', 0.0)
+                reb = cleaned_row.get('REB', 0.0)
+                ast = cleaned_row.get('AST', 0.0)
+                blk = cleaned_row.get('BLK', 0.0)
+                stl = cleaned_row.get('STL', 0.0)
 
-        try:
-            # Extract values to calculate new columns
-            pts = int(row[header.index('PTS')])
-            reb = int(row[header.index('REB')])
-            ast = int(row[header.index('AST')])
-            blk = int(row[header.index('BLK')])
-            stl = int(row[header.index('STL')])
-        except ValueError:
-            # Handle cases where conversion to int fails
-            return None
+                # Calculate new columns
+                cleaned_row['PTS + REB'] = pts + reb
+                cleaned_row['PTS + AST'] = pts + ast
+                cleaned_row['PTS + REB + AST'] = pts + reb + ast
+                cleaned_row['BLK + STL'] = blk + stl
+                cleaned_row['REB + AST'] = reb + ast
 
-        # Calculate new columns
-        pts_reb = pts + reb
-        pts_ast = pts + ast
-        pts_reb_ast = pts + reb + ast
-        blk_stl = blk + stl
-        reb_ast = reb + ast
+                cleaned_rows.append(cleaned_row)
+            except ValueError:
+                continue
 
-        # Append new columns to the cleaned row
-        cleaned_row.extend([pts_reb, pts_ast, pts_reb_ast, blk_stl, reb_ast])
+    # Create DataFrame
+    df = pd.DataFrame(cleaned_rows)
+    
+    # Adjust column names for season averages
+    if is_season_avg:
+        df.columns = [col.replace("PPG", "PTS").replace("RPG", "REB").replace("APG", "AST").replace("SPG", "STL").replace("BPG", "BLK").replace("TPG", "TOV") for col in df.columns]
+    
+    return df
 
-        return cleaned_row
+def preprocess_nba_data(player_name, team):
+    """
+    Fetches, cleans, and preprocesses NBA player data for the given player and team.
+    
+    Parameters:
+    player_name (str): The name of the player.
+    team (str): The opposing team.
+    
+    Returns:
+    pd.DataFrame: Preprocessed data ready for model training.
+    """
+    league = "nba"
+    player_stats = get_player_stats(league, player_name, team)
+    
+    game_data_frames = []
+    season_data_frames = []
 
-    # Clean data, skipping the header row
-    cleaned_data = [clean_row(row) for row in data[1:] if row and 'Average' not in row]
+    for stat_category, stats_data in player_stats.items():
+        print(f"Processing: {stat_category}")
+        column_mapping = column_mappings.get(stat_category, {})
+        if stat_category in season_related_categories:
+            cleaned_data = clean_nba_data(stats_data, column_mapping, is_season_avg=True)
+            cleaned_data['Category'] = stat_category
+            season_data_frames.append(cleaned_data)
+        else:
+            cleaned_data = clean_nba_data(stats_data, column_mapping)
+            cleaned_data['Category'] = stat_category
+            game_data_frames.append(cleaned_data)
+    
+    game_combined_df = pd.concat(game_data_frames, ignore_index=True)
+    season_combined_df = pd.concat(season_data_frames, ignore_index=True)
 
-    # Remove any rows that failed to process
-    cleaned_data = [row for row in cleaned_data if row is not None]
+    # # Normalize/Standardize numerical columns
+    # game_numerical_cols = game_combined_df.select_dtypes(include=['float64', 'int64']).columns
+    # game_combined_df[game_numerical_cols] = (game_combined_df[game_numerical_cols] - game_combined_df[game_numerical_cols].mean()) / game_combined_df[game_numerical_cols].std()
 
-    # Add new headers for the additional columns
-    new_columns = ['PTS + REB', 'PTS + AST', 'PTS + REB + AST', 'BLK + STL', 'REB + AST']
-    cleaned_data.insert(0, [header[i] for i in indices_to_keep] + new_columns)
+    # season_numerical_cols = season_combined_df.select_dtypes(include=['float64', 'int64']).columns
+    # season_combined_df[season_numerical_cols] = (season_combined_df[season_numerical_cols] - season_combined_df[season_numerical_cols].mean()) / season_combined_df[season_numerical_cols].std()
 
-    return cleaned_data
+    return game_combined_df, season_combined_df
 
-def get_nba_statistics():
-    return ['MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'FGM', 'FGA', '3PM', '3PA', 'FTM', 'FTA', 'OREB', 'DREB', 'TOV', 'PF', 'PTS + REB', 'PTS + AST', 'PTS + REB + AST', 'BLK + STL', 'REB + AST']
+# Example usage
+player_name = "luka-doncic"
+team = "celtics"
 
+game_data, season_data = preprocess_nba_data(player_name, team)
 
-# # Example usage
-# nba_url = geturl("nba", "lebron-james", "mavs", "combined")
-# # print(nba_url)
-# nba_data = scrape_statmuse(nba_url)
-# v = clean_nba_data(nba_data)
-
-# for row in v:
-#     print(row)
+# Save preprocessed data to CSV for later use
+game_data.to_csv('preprocessed_nba_game_datav3.csv', index=False)
+season_data.to_csv('preprocessed_nba_season_datav3.csv', index=False)
