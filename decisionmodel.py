@@ -1,43 +1,34 @@
 import numpy as np
 from sklearn.calibration import calibration_curve
 import matplotlib.pyplot as plt
-import joblib
 import pandas as pd
-from sklearn.metrics import mean_squared_error, r2_score
 
-def load_model_and_data(model_file, X_test_file, y_test_file, X_train_file, y_train_file):
-    model = joblib.load(model_file)
-    X_test = pd.read_csv(X_test_file)
-    y_test = pd.read_csv(y_test_file).values.flatten()
-    X_train = pd.read_csv(X_train_file)
-    y_train = pd.read_csv(y_train_file).values.flatten()
-    return model, X_test, y_test, X_train, y_train
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
 def evaluate_calibration(model, X, y, projection):
     y_binary = (y > projection).astype(int)
-    pred_prob = (model.predict(X) > projection).astype(float)
+    pred_prob = sigmoid(model.predict(X) - projection)  # Probability of hitting the projection
 
     prob_true, prob_pred = calibration_curve(y_binary, pred_prob, n_bins=10)
 
-    plt.figure(figsize=(14, 6))
+    fig, ax = plt.subplots(1, 2, figsize=(14, 6))
 
-    plt.subplot(1, 2, 1)
-    plt.plot(prob_pred, prob_true, marker='o', linewidth=1, label='Calibration curve')
-    plt.plot([0, 1], [0, 1], linestyle='--', color='gray', label='Perfectly calibrated')
-    plt.xlabel('Predicted probability')
-    plt.ylabel('True probability')
-    plt.title('Calibration plot')
-    plt.legend()
+    ax[0].plot(prob_pred, prob_true, marker='o', linewidth=1, label='Calibration curve')
+    ax[0].plot([0, 1], [0, 1], linestyle='--', color='gray', label='Perfectly calibrated')
+    ax[0].set_xlabel('Predicted probability')
+    ax[0].set_ylabel('True probability')
+    ax[0].set_title('Calibration plot')
+    ax[0].legend()
 
     residuals = y - model.predict(X)
-    plt.subplot(1, 2, 2)
-    plt.hist(residuals, bins=10, edgecolor='black', alpha=0.7)
-    plt.xlabel('Residuals')
-    plt.ylabel('Frequency')
-    plt.title('Residuals distribution')
+    ax[1].hist(residuals, bins=10, edgecolor='black', alpha=0.7)
+    ax[1].set_xlabel('Residuals')
+    ax[1].set_ylabel('Frequency')
+    ax[1].set_title('Residuals distribution')
 
     plt.tight_layout()
-    plt.show()
+    return fig
 
 def predict_and_decide_with_probability(model, X, projection, X_train, y_train):
     X = np.array(X).reshape(1, -1)
@@ -45,42 +36,38 @@ def predict_and_decide_with_probability(model, X, projection, X_train, y_train):
     
     residuals = y_train - model.predict(X_train)
     std_residuals = np.std(residuals)
+    n = len(X_train)
     
-    ci_lower = predicted_value - 1.96 * std_residuals
-    ci_upper = predicted_value + 1.96 * std_residuals
+    # Calculate the confidence interval
+    ci_lower = predicted_value - 1.96 * (std_residuals / np.sqrt(n))
+    ci_upper = predicted_value + 1.96 * (std_residuals / np.sqrt(n))
     
-    over_prob = min(max(1 - (np.abs(predicted_value - projection) / std_residuals), 0), 1)
-    under_prob = 1 - over_prob
-    
+    # Compute hit probability using sigmoid function
+    hit_prob = sigmoid(predicted_value - projection) * 100
+
     decision = 'over' if predicted_value > projection else 'under'
-    confidence = over_prob * 100 if decision == 'over' else under_prob * 100
+    confidence_range = 1.96 * (std_residuals / np.sqrt(n))
     
-    if confidence > 100:
-        confidence = 100
-    elif confidence < 0:
-        confidence = 0
-    
-    return predicted_value, decision, ci_lower, ci_upper, confidence
+    return predicted_value, decision, ci_lower, ci_upper, hit_prob, confidence_range
 
-if __name__ == "__main__":
-    # Define the model types and their corresponding model files
-    model_types = ['random_forest', 'gradient_boosting', 'svr', 'xgboost', 'catboost']
-    model_files = [f'trained_{model_type}_model.pkl' for model_type in model_types]
-
-    X_test_file = 'X_test.csv'
-    y_test_file = 'y_test.csv'
-    X_train_file = 'X_train.csv'
-    y_train_file = 'y_train.csv'
-
-    projection = 32.5
-
-    for model_file, model_type in zip(model_files, model_types):
-        model, X_test, y_test, X_train, y_train = load_model_and_data(model_file, X_test_file, y_test_file, X_train_file, y_train_file)
-        X = X_test
-        y = y_test
-
-        evaluate_calibration(model, X, y, projection)
+def evaluate_models(models, X_test, y_test, X_train, y_train, projection):
+    results = []
+    fig = None
+    for model_type, model in models.items():
+        print(f"Evaluating {model_type.capitalize()} model...")
+        fig = evaluate_calibration(model, X_test, y_test, projection)
 
         example_input = X_test.iloc[0].to_numpy()
-        predicted_value, decision, ci_lower, ci_upper, confidence = predict_and_decide_with_probability(model, example_input, projection, X_train, y_train)
-        print(f"{model_type.capitalize()} - Predicted Value: {predicted_value}, Decision: {decision}, Confidence Interval: ({ci_lower}, {ci_upper}), Confidence: {confidence:.2f}%")
+        predicted_value, decision, ci_lower, ci_upper, hit_prob, confidence_range = predict_and_decide_with_probability(model, example_input, projection, X_train, y_train)
+        result = {
+            "model_type": model_type.capitalize(),
+            "predicted_value": predicted_value,
+            "decision": decision,
+            "confidence_interval": (ci_lower, ci_upper),
+            "hit_probability": hit_prob,
+            "confidence_range": confidence_range
+        }
+        results.append(result)
+        print(f"{model_type.capitalize()} - Predicted Value: {predicted_value}, Decision: {decision}, Confidence Interval: ({ci_lower}, {ci_upper}), Hit Probability: {hit_prob:.2f}%, Confidence: {hit_prob:.2f}% ± {confidence_range:.2f}")
+    
+    return fig, results

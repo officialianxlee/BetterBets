@@ -101,13 +101,14 @@ def clean_nba_data(data, column_mapping, is_season_avg=False):
     
     return df
 
-def preprocess_nba_data(player_name, team):
+def preprocess_nba_data(player_name, team, season_type):
     """
     Fetches, cleans, and preprocesses NBA player data for the given player and team.
     
     Parameters:
     player_name (str): The name of the player.
     team (str): The opposing team.
+    season_type (str): Either "Regular Season" or "Playoffs".
     
     Returns:
     pd.DataFrame: Preprocessed data ready for model training.
@@ -119,6 +120,9 @@ def preprocess_nba_data(player_name, team):
     season_data_frames = []
 
     for stat_category, stats_data in player_stats.items():
+        if season_type == "Regular Season" and stat_category == "Last 5 playoff games against team":
+            continue
+
         print(f"Processing: {stat_category}")
         column_mapping = column_mappings.get(stat_category, {})
         if stat_category in season_related_categories:
@@ -133,21 +137,4 @@ def preprocess_nba_data(player_name, team):
     game_combined_df = pd.concat(game_data_frames, ignore_index=True)
     season_combined_df = pd.concat(season_data_frames, ignore_index=True)
 
-    # # Normalize/Standardize numerical columns
-    # game_numerical_cols = game_combined_df.select_dtypes(include=['float64', 'int64']).columns
-    # game_combined_df[game_numerical_cols] = (game_combined_df[game_numerical_cols] - game_combined_df[game_numerical_cols].mean()) / game_combined_df[game_numerical_cols].std()
-
-    # season_numerical_cols = season_combined_df.select_dtypes(include=['float64', 'int64']).columns
-    # season_combined_df[season_numerical_cols] = (season_combined_df[season_numerical_cols] - season_combined_df[season_numerical_cols].mean()) / season_combined_df[season_numerical_cols].std()
-
     return game_combined_df, season_combined_df
-
-# Example usage
-player_name = "luka-doncic"
-team = "celtics"
-
-game_data, season_data = preprocess_nba_data(player_name, team)
-
-# Save preprocessed data to CSV for later use
-game_data.to_csv('preprocessed_nba_game_datav3.csv', index=False)
-season_data.to_csv('preprocessed_nba_season_datav3.csv', index=False)
