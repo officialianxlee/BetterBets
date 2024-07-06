@@ -1,125 +1,81 @@
 import tkinter as tk
 from tkinter import ttk
-import importlib
-from barchart import plot_sports_stats
-from datascraper import geturl, scrape_statmuse
-from nba import clean_nba_data
-from nhl import clean_nhl_data
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
+from nba import preprocess_nba_data
+from model import train_models
+from decisionmodel import evaluate_models
 
-# Create the main window
-root = tk.Tk()
-root.title("Sports Statistics GUI")
-
-# Create a label and dropdown for the league
-league_label = tk.Label(root, text="League:")
-league_label.grid(row=0, column=0)
-league_var = tk.StringVar(value="NBA")
-league_dropdown = ttk.Combobox(root, textvariable=league_var)
-league_dropdown['values'] = ('NBA', 'NFL', 'NHL')
-league_dropdown.grid(row=0, column=1)
-
-# Create a label and text input for the player name
-player_name_label = tk.Label(root, text="Player Name:")
-player_name_label.grid(row=1, column=0)
-player_name_entry = tk.Entry(root)
-player_name_entry.grid(row=1, column=1)
-
-# Create a label and text input for the team name
-team_name_label = tk.Label(root, text="Team Name:")
-team_name_label.grid(row=2, column=0)
-team_name_entry = tk.Entry(root)
-team_name_entry.grid(row=2, column=1)
-
-# Create a label and dropdown for the time duration
-time_duration_label = tk.Label(root, text="Time Duration:")
-time_duration_label.grid(row=3, column=0)
-time_duration_var = tk.StringVar(value="Last 5 Regular Games")
-time_duration_dropdown = ttk.Combobox(root, textvariable=time_duration_var)
-time_duration_dropdown['values'] = ('Last 5 Regular Games', 'Playoff Game Log')
-time_duration_dropdown.grid(row=3, column=1)
-
-# Create a label and dropdown for the position (only for NHL)
-position_label = tk.Label(root, text="Position:")
-position_label.grid(row=4, column=0)
-position_var = tk.StringVar(value="Player")
-position_dropdown = ttk.Combobox(root, textvariable=position_var)
-position_dropdown['values'] = ('Player', 'Goalie')
-position_dropdown.grid(row=4, column=1)
-position_label.grid_remove()
-position_dropdown.grid_remove()
-
-# Create a label and dropdown for the statistic
-statistic_label = tk.Label(root, text="Statistic:")
-statistic_label.grid(row=5, column=0)
-statistic_var = tk.StringVar(value="PTS")
-statistic_dropdown = ttk.Combobox(root, textvariable=statistic_var)
-statistic_dropdown.grid(row=5, column=1)
-
-# Create a label and text input for the projection
-projection_label = tk.Label(root, text="Projection:")
-projection_label.grid(row=6, column=0)
-projection_entry = tk.Entry(root)
-projection_entry.grid(row=6, column=1)
-
-def update_statistic_options(*args):
-    league = league_var.get()
-    if league == 'NHL':
-        position_label.grid()
-        position_dropdown.grid()
-        position = position_var.get().lower()
-    else:
-        position_label.grid_remove()
-        position_dropdown.grid_remove()
-        position = 'player'
-    
-    try:
-        module = importlib.import_module(league.lower())
-        if league == 'NHL':
-            if position == 'goalie':
-                get_statistics = getattr(module, f'get_{league.lower()}_goalie_statistics')
-            else:
-                get_statistics = getattr(module, f'get_{league.lower()}_player_statistics')
-        else:
-            get_statistics = getattr(module, f'get_{league.lower()}_statistics')
-        stat_options = get_statistics()
-        statistic_var.set(stat_options[0])
-        statistic_dropdown['values'] = stat_options
-    except ImportError:
-        print(f"Module for {league} not found.")
-    except AttributeError:
-        print(f"Function to get statistics for {league} not found.")
-
-# Update statistic options when the league or position changes
-league_var.trace('w', update_statistic_options)
-position_var.trace('w', update_statistic_options)
-
-# Function to handle button click
-def on_button_click():
+def run_prediction():
     league = league_var.get()
     player_name = player_name_entry.get()
-    team = team_name_entry.get()
-    time_duration = time_duration_var.get()
-    statistic = statistic_var.get()
+    team = team_entry.get()
+    stat = stat_var.get()
     projection = float(projection_entry.get())
+    season_type = season_var.get()
+    model_type = model_var.get()
 
-    url = geturl(league.lower(), player_name, team, time_duration)
-    data = scrape_statmuse(url)
+    game_data, season_data = preprocess_nba_data(player_name, team, season_type)
+    models, X_test, y_test, X_train, y_train = train_models(game_data, season_data, model_type)
 
-    if league == 'NBA':
-        cleaned_data = clean_nba_data(data)
-    elif league == 'NHL':
-        position = position_var.get().lower()
-        cleaned_data = clean_nhl_data(data, position)
-    # Add elif blocks for other leagues and their cleaning functions
-    
-    plot_sports_stats(cleaned_data, statistic, projection)
+    fig, text_output = evaluate_models(models, X_test, y_test, X_train, y_train, projection)
 
-# Create a button to trigger data processing and plotting
-button = tk.Button(root, text="Generate Plot", command=on_button_click)
-button.grid(row=7, columnspan=2)
+    # Display the plots
+    canvas = FigureCanvasTkAgg(fig, master=window)
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-# Initial update to set the correct statistic options
-update_statistic_options()
+    # Display the text output
+    result_label.config(text=text_output)
 
-# Run the application
-root.mainloop()
+window = tk.Tk()
+window.title("Sports Betting Prediction")
+
+# League input
+tk.Label(window, text="League:").pack()
+league_var = tk.StringVar(value="nba")
+league_entry = tk.Entry(window, textvariable=league_var)
+league_entry.pack()
+
+# Player name input
+tk.Label(window, text="Player Name:").pack()
+player_name_entry = tk.Entry(window)
+player_name_entry.pack()
+
+# Team input
+tk.Label(window, text="Team:").pack()
+team_entry = tk.Entry(window)
+team_entry.pack()
+
+# Statistic input
+tk.Label(window, text="Statistic:").pack()
+stat_var = tk.StringVar(value="PTS")
+stat_entry = tk.Entry(window, textvariable=stat_var)
+stat_entry.pack()
+
+# Projection input
+tk.Label(window, text="Projection:").pack()
+projection_entry = tk.Entry(window)
+projection_entry.pack()
+
+# Season type dropdown
+tk.Label(window, text="Season Type:").pack()
+season_var = tk.StringVar(value="regular")
+season_dropdown = ttk.Combobox(window, textvariable=season_var, values=["regular", "playoffs"])
+season_dropdown.pack()
+
+# Model type dropdown
+tk.Label(window, text="Model Type:").pack()
+model_var = tk.StringVar(value="random_forest")
+model_dropdown = ttk.Combobox(window, textvariable=model_var, values=["random_forest", "gradient_boosting", "svr", "xgboost", "catboost"])
+model_dropdown.pack()
+
+# Generate button
+generate_button = tk.Button(window, text="Generate Statistic", command=run_prediction)
+generate_button.pack()
+
+# Result label
+result_label = tk.Label(window, text="")
+result_label.pack()
+
+window.mainloop()
